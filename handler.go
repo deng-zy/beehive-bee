@@ -29,22 +29,23 @@ func (h Handler) Concurrency() int {
 	return 10
 }
 
-type newEventHandler struct {
+type eventHandler struct {
 	Handler
 }
 
-func (n newEventHandler) Topic() string {
+func (n eventHandler) Topic() string {
 	return "NEW_EVENT"
 }
 
 // Concurrency 并发数
-func (n newEventHandler) Concurrency() int {
+func (n eventHandler) Concurrency() int {
 	return 30
 }
 
-func (n newEventHandler) Handle(payload []byte) error {
+func (n eventHandler) Handle(payload []byte) error {
 	event := &Event{}
 	err := json.Unmarshal(payload, event)
+
 	if err != nil {
 		return err
 	}
