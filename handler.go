@@ -1,8 +1,10 @@
 package bee
 
+import "encoding/json"
+
 // IHandler event process
 type IHandler interface {
-	Handle(string) error
+	Handle([]byte) error
 	CanRetry() bool
 	Concurrency() int
 	Topic() string
@@ -25,4 +27,26 @@ func (h Handler) MaxRetries() int {
 // Concurrency 并发数
 func (h Handler) Concurrency() int {
 	return 10
+}
+
+type newEventHandler struct {
+	Handler
+}
+
+func (n newEventHandler) Topic() string {
+	return "NEW_EVENT"
+}
+
+// Concurrency 并发数
+func (n newEventHandler) Concurrency() int {
+	return 30
+}
+
+func (n newEventHandler) Handle(payload []byte) error {
+	event := &Event{}
+	err := json.Unmarshal(payload, event)
+	if err != nil {
+		return err
+	}
+	return nil
 }
