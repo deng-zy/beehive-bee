@@ -1,16 +1,15 @@
 package bee
 
 import (
-	"log"
-
 	"github.com/nsqio/go-nsq"
 )
 
 type bee struct {
-	conf    *Config
-	engine  *Engine
-	topic   string
-	handler IHandler
+	conf     *Config
+	engine   *Engine
+	topic    string
+	handler  IHandler
+	consumer *nsq.Consumer
 }
 
 // newBee create a bee
@@ -19,6 +18,10 @@ func newBee(conf *Config, engine *Engine) *bee {
 		conf:   conf,
 		engine: engine,
 	}
+}
+
+func (b *bee) stop() {
+	b.consumer.Stop()
 }
 
 func (b *bee) pick(topic string, handler IHandler) {
@@ -31,10 +34,13 @@ func (b *bee) pick(topic string, handler IHandler) {
 		if err != nil {
 			b.conf.logger.Fatalf("new %s consumer fail. error:%v", topic, err)
 		}
+		b.consumer = consumer
+
 		consumer.AddConcurrentHandlers(b, handler.Concurrency())
 		if err := consumer.ConnectToNSQLookupds(b.conf.nsqlookupd); err != nil {
-			log.Fatal(err)
+			b.conf.logger.Fatal(err)
 		}
+
 		<-consumer.StopChan
 	}()
 }
