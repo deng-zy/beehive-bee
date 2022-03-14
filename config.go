@@ -8,7 +8,7 @@ import (
 )
 
 type Config struct {
-	nsqd       []string
+	nsqd       string
 	nsqlookupd []string
 	db         *gorm.DB
 	logger     *logrus.Logger
@@ -39,7 +39,7 @@ func WithNSQLookupd(address []string) Option {
 }
 
 // WithNSQd 根据nsqd地址
-func WithNSQd(address []string) Option {
+func WithNSQd(address string) Option {
 	return func(c *Config) {
 		c.nsqd = address
 	}

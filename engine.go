@@ -23,7 +23,8 @@ func NewEngine(conf *Config) (*Engine, error) {
 		bees:     make([]*bee, 1024),
 	}
 
-	e.AddHandler(new(eventHandler))
+	h := newEventHandler(e)
+	e.AddHandler(h)
 
 	return e, nil
 }

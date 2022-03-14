@@ -1,6 +1,9 @@
 package bee
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/nsqio/go-nsq"
 )
 
@@ -46,9 +49,43 @@ func (b *bee) pick(topic string, handler IHandler) {
 }
 
 func (b *bee) HandleMessage(m *nsq.Message) error {
-	err := b.handler.Handle(m.Body)
+	m.DisableAutoResponse()
+	defer func() {
+		err := recover()
+		if err != nil {
+			m.Requeue(-1)
+		}
+	}()
+
+	var task *task
+	var err error
+
+	err = json.Unmarshal(m.Body, task)
 	if err == nil {
+		b.conf.logger.Errorf("unmarshal task error(%v)", err)
+		m.Finish()
 		return nil
+	}
+
+	err = b.handler.Handle(m.Body)
+	if err == nil {
+		m.Finish()
+		return nil
+	}
+
+	b.conf.logger.WithField("topic", task.Topic).WithField("payload", task.Payload).Errorf("handle task fail(%v)", err)
+	if !b.handler.CanRetry() {
+		m.Finish()
+		return nil
+	}
+
+	retires := 0
+	if retires < b.handler.MaxRetries() {
+		m.Requeue(-1)
+		// increment retires
+
+		// update task status
+		return fmt.Errorf("task handle fail(%w)", err)
 	}
 
 	return nil
