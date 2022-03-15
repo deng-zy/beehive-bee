@@ -9,12 +9,12 @@ type Event struct {
 	Payload     string    `gorm:"column:payload" db:"payload" json:"payload"`                    //消息
 	Publisher   string    `gorm:"column:publisher" db:"publisher" json:"publisher"`              //发布者
 	PublishedAt time.Time `gorm:"column:published_at" db:"published_at" json:"published_at"`     //发布时间 发布时间可能早于创建时间
-	CreatedAt   time.Time `gorm:"column:created_at" db:"created_at" json:"created_at" omitempty` //创建时间
-	UpdatedAt   time.Time `gorm:"column:updated_at" db:"updated_at" json:"updated_at" omitempty` //更新时间
+	CreatedAt   time.Time `gorm:"column:created_at" db:"created_at" json:"created_at,omitempty"` //创建时间
+	UpdatedAt   time.Time `gorm:"column:updated_at" db:"updated_at" json:"updated_at,omitempty"` //更新时间
 }
 
 // TableName return data table name
-func (e *Event) TableName() string {
+func (e Event) TableName() string {
 	return "events"
 }
 

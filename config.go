@@ -2,19 +2,25 @@ package bee
 
 import (
 	"errors"
+	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
+// Config bee运行时配置信息
 type Config struct {
-	nsqd       string
-	nsqlookupd []string
-	db         *gorm.DB
-	logger     *logrus.Logger
+	nsqd           string
+	nsqlookupd     []string
+	snowflakeEpoch int64
+	snowflakeNode  int64
+	db             *gorm.DB
+	logger         *logrus.Logger
+	redis          *redis.Client
 }
 
-// Option create engine option
+// Option create a new config
 type Option func(*Config)
 
 // WithLogger with logger
@@ -45,6 +51,27 @@ func WithNSQd(address string) Option {
 	}
 }
 
+// WithSnowflakeNode snowflake id node
+func WithSnowflakeNode(node int64) Option {
+	return func(c *Config) {
+		c.snowflakeNode = node
+	}
+}
+
+// WithSnowflakeEpoch snowflake epoch
+func WithSnowflakeEpoch(t time.Time) Option {
+	return func(c *Config) {
+		c.snowflakeEpoch = t.UnixMilli()
+	}
+}
+
+// WithRedis redis client
+func WithRedis(client *redis.Client) Option {
+	return func(c *Config) {
+		c.redis = client
+	}
+}
+
 // NewConfig create a config instance
 func NewConfig(options ...Option) (*Config, error) {
 	config := &Config{}
@@ -56,7 +83,11 @@ func NewConfig(options ...Option) (*Config, error) {
 		return nil, errors.New("required db")
 	}
 
-	if config.nsqd == nil || len(config.nsqd) < 1 {
+	if config.redis == nil {
+		return nil, errors.New("required redis")
+	}
+
+	if config.nsqd == "" {
 		return nil, errors.New("required nsqd address")
 	}
 
@@ -66,6 +97,11 @@ func NewConfig(options ...Option) (*Config, error) {
 
 	if config.logger == nil {
 		config.logger = logrus.New()
+	}
+
+	if config.snowflakeEpoch == 0 {
+		t, _ := time.Parse("2006-01-02 15:04:05", "2022-02-22 22:22:22")
+		config.snowflakeEpoch = t.UnixMilli()
 	}
 
 	return config, nil

@@ -5,6 +5,22 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+
+	"github.com/go-redis/redis/v8"
+	"gorm.io/gorm"
+)
+
+const (
+	// StatusReady task status ready
+	StatusReady = 1
+	// StatusProcessing task status processing
+	StatusProcessing = 2
+	// StatusFinished task status Finished
+	StatusFinished = 3
+	// StatusAbort task status abort
+	StatusAbort = 4
+	// StatusCancel task status cancel
+	StatusCancel = 5
 )
 
 // Engine bee engine
@@ -13,6 +29,8 @@ type Engine struct {
 	conf     *Config
 	mutex    sync.RWMutex
 	bees     []*bee
+	db       *gorm.DB
+	redis    *redis.Client
 }
 
 // NewEngine create a new engine
@@ -20,6 +38,8 @@ func NewEngine(conf *Config) (*Engine, error) {
 	e := &Engine{
 		handlers: map[string]IHandler{},
 		conf:     conf,
+		db:       conf.db,
+		redis:    conf.redis,
 		bees:     make([]*bee, 1024),
 	}
 
