@@ -43,7 +43,7 @@ func NewEngine(conf *Config) (*Engine, error) {
 		bees:     make([]*bee, 1024),
 	}
 
-	h := newEventHandler(e)
+	h := newDispatcher(e)
 	e.AddHandler(h)
 
 	return e, nil
