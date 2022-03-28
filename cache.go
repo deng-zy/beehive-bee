@@ -9,17 +9,21 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
+const (
+	statusField     = "status"
+	retryField      = "retires"
+	startTimeField  = "start_time"
+	finishTimeField = "finish_time"
+	resultField     = "result"
+)
+
 // taskCache 事件处理任务缓存
 type taskCache struct {
-	redis      *redis.Client
-	ctx        context.Context
-	keyPrefix  string
-	expire     time.Duration
-	retry      string
-	status     string
-	startTime  string
-	finishTime string
-	result     string
+	redis     *redis.Client
+	ctx       context.Context
+	keyPrefix string
+	expire    time.Duration
+	fields    []string
 }
 
 // cacheInstance 事件处理环缓存实例
@@ -32,15 +36,11 @@ var cacheHandle sync.Once
 func newTaskCache(client *redis.Client) *taskCache {
 	cacheHandle.Do(func() {
 		cacheInstance = &taskCache{
-			keyPrefix:  "t:",
-			expire:     168 * time.Hour,
-			redis:      client,
-			ctx:        context.Background(),
-			retry:      "retires",
-			status:     "status",
-			startTime:  "start_time",
-			finishTime: "finish_time",
-			result:     "result",
+			keyPrefix: "t:",
+			expire:    168 * time.Hour,
+			redis:     client,
+			ctx:       context.Background(),
+			fields:    []string{statusField, retryField, startTimeField, finishTimeField, resultField},
 		}
 	})
 
@@ -50,7 +50,7 @@ func newTaskCache(client *redis.Client) *taskCache {
 // init 初始事件处理缓存
 func (t *taskCache) init(ID uint64) {
 	key := t.key(ID)
-	t.redis.HSet(t.ctx, key, t.status, StatusProcessing, t.result, "", t.retry, 0, t.startTime, 0, t.finishTime, 0)
+	t.redis.HSet(t.ctx, key, statusField, StatusProcessing, resultField, "", retryField, 0, startTimeField, 0, finishTimeField, 0)
 }
 
 // get 获取事件处理缓存数据
@@ -65,7 +65,7 @@ func (t *taskCache) success(ID uint64, finishedAt time.Time) {
 	key := t.key(ID)
 	p := t.redis.Pipeline()
 
-	p.HSet(t.ctx, key, t.status, StatusFinished, t.finishTime, finishedAt.Format(time.RFC3339Nano), t.result, "success")
+	p.HSet(t.ctx, key, statusField, StatusFinished, finishTimeField, finishedAt.Format(time.RFC3339Nano), resultField, "success")
 	p.Expire(t.ctx, key, t.expire)
 	p.Exec(t.ctx)
 }
@@ -74,8 +74,8 @@ func (t *taskCache) success(ID uint64, finishedAt time.Time) {
 func (t *taskCache) retrying(ID uint64, result error) {
 	p := t.redis.Pipeline()
 	key := t.key(ID)
-	p.HSet(t.ctx, key, t.result, result.Error())
-	p.HIncrBy(t.ctx, key, t.retry, 1)
+	p.HSet(t.ctx, key, resultField, result.Error())
+	p.HIncrBy(t.ctx, key, retryField, 1)
 	p.Exec(t.ctx)
 }
 
@@ -83,21 +83,21 @@ func (t *taskCache) retrying(ID uint64, result error) {
 func (t *taskCache) abort(ID uint64, abortedAt time.Time, result error) {
 	p := t.redis.Pipeline()
 	key := t.key(ID)
-	p.HSet(t.ctx, key, t.status, StatusAbort, t.finishTime, abortedAt.Format(time.RFC3339Nano), t.result, result.Error())
+	p.HSet(t.ctx, key, statusField, StatusAbort, finishTimeField, abortedAt.Format(time.RFC3339Nano), resultField, result.Error())
 	p.Expire(t.ctx, key, t.expire)
 	p.Exec(t.ctx)
 }
 
 // retires 获取重试次数
 func (t *taskCache) retires(ID uint64) int {
-	val, _ := t.redis.HGet(t.ctx, t.key(ID), t.retry).Result()
+	val, _ := t.redis.HGet(t.ctx, t.key(ID), retryField).Result()
 	retires, _ := strconv.ParseInt(val, 10, 32)
 	return int(retires)
 }
 
 // setStartTime 设置事件处理开始时间
 func (t *taskCache) setStartTime(ID uint64, startTime time.Time) {
-	t.redis.HSet(t.ctx, t.key(ID), t.startTime, startTime)
+	t.redis.HSet(t.ctx, t.key(ID), startTimeField, startTime)
 }
 
 // key 获取事件缓存key

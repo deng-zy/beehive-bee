@@ -25,7 +25,7 @@ func TestCache(t *testing.T) {
 	now := time.Now()
 	cache.setStartTime(task, now)
 	i := cache.get(task)
-	st, err := time.Parse(time.RFC3339, i["start_time"])
+	st, err := time.Parse(time.RFC3339, i[startTimeField])
 	if err != nil {
 		t.Errorf("task startTime error. time:%s, err:%v.", i["start_time"], err)
 		return
@@ -47,26 +47,26 @@ func TestCache(t *testing.T) {
 	abort := errors.New("unit test abort")
 	cache.abort(task, time.Now(), abort)
 	i = cache.get(task)
-	if i["result"] != abort.Error() {
-		t.Errorf("task cache abort reason error. cache:%v, except:%s, acutal:%s", i, abort, i["result"])
+	if i[resultField] != abort.Error() {
+		t.Errorf("task cache abort reason error. cache:%v, except:%s, acutal:%s", i, abort, i[resultField])
 		return
 	}
 
-	if i["status"] != strconv.FormatInt(StatusAbort, 10) {
-		t.Errorf("task cache abort status error. cache:%v, except:%d, acutal:%s", i, StatusAbort, i["status"])
+	if i[statusField] != strconv.FormatInt(StatusAbort, 10) {
+		t.Errorf("task cache abort status error. cache:%v, except:%d, acutal:%s", i, StatusAbort, i[statusField])
 		return
 	}
 
 	//test success
 	cache.success(task, time.Now())
 	i = cache.get(task)
-	if i["status"] != strconv.FormatInt(StatusFinished, 10) {
-		t.Errorf("task cache status error. cache:%v, except:%d, acutal:%s", i, StatusFinished, i["status"])
+	if i[statusField] != strconv.FormatInt(StatusFinished, 10) {
+		t.Errorf("task cache status error. cache:%v, except:%d, acutal:%s", i, StatusFinished, i[statusField])
 		return
 	}
 
-	if i["result"] != "success" {
-		t.Errorf("task cache result error. cache:%v, except:%s, acutal:%s", i, "success", i["result"])
+	if i[resultField] != "success" {
+		t.Errorf("task cache result error. cache:%v, except:%s, acutal:%s", i, "success", i[resultField])
 		return
 	}
 
