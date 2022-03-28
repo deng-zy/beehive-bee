@@ -13,7 +13,7 @@ import (
 type dispatcher struct {
 	Handler
 	engine    *Engine
-	deliver   *nsq.Producer
+	producer  *nsq.Producer
 	snowflake *snowflake.Node
 	cache     *taskCache
 	db        *gorm.DB
@@ -40,7 +40,7 @@ func newDispatcher(e *Engine) *dispatcher {
 
 		dispatchInstance = &dispatcher{
 			engine:    e,
-			deliver:   deliver,
+			producer:  deliver,
 			snowflake: node,
 			cache:     newTaskCache(e.redis),
 			db:        e.db,
@@ -49,16 +49,16 @@ func newDispatcher(e *Engine) *dispatcher {
 	return dispatchInstance
 }
 
-func (d dispatcher) Topic() string {
+func (d *dispatcher) Topic() string {
 	return "NEW_EVENT"
 }
 
 // Concurrency 并发数
-func (d dispatcher) Concurrency() int {
+func (d *dispatcher) Concurrency() int {
 	return 30
 }
 
-func (d dispatcher) Handle(payload string) error {
+func (d *dispatcher) Handle(payload string) error {
 	event := &Event{}
 	err := json.Unmarshal([]byte(payload), event)
 
@@ -87,7 +87,7 @@ func (d dispatcher) Handle(payload string) error {
 		return fmt.Errorf("marshal task fail(%w)", err)
 	}
 
-	err = d.deliver.Publish(task.Topic, body)
+	err = d.producer.Publish(task.Topic, body)
 	if err != nil {
 		db.Rollback()
 		return fmt.Errorf("producer publish fail(%w)", err)
@@ -98,11 +98,11 @@ func (d dispatcher) Handle(payload string) error {
 	return nil
 }
 
-func (d dispatcher) createEvent(m *Event, db *gorm.DB) error {
+func (d *dispatcher) createEvent(m *Event, db *gorm.DB) error {
 	return db.Create(m).Error
 }
 
-func (d dispatcher) createTask(m *Event, db *gorm.DB) (*task, error) {
+func (d *dispatcher) createTask(m *Event, db *gorm.DB) (*task, error) {
 	task := &task{
 		ID:      uint64(d.snowflake.Generate()),
 		EventID: m.ID,

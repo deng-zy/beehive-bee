@@ -75,7 +75,7 @@ func (t *taskCache) retrying(ID uint64, result error) {
 	p := t.redis.Pipeline()
 	key := t.key(ID)
 	p.HSet(t.ctx, key, t.result, result.Error())
-	p.HIncrBy(t.ctx, key, t.result, 1)
+	p.HIncrBy(t.ctx, key, t.retry, 1)
 	p.Exec(t.ctx)
 }
 
@@ -97,10 +97,10 @@ func (t *taskCache) retires(ID uint64) int {
 
 // setStartTime 设置事件处理开始时间
 func (t *taskCache) setStartTime(ID uint64, startTime time.Time) {
-	t.redis.HSet(t.ctx, t.key(ID), t.startTime, startTime.Format(time.RFC3339))
+	t.redis.HSet(t.ctx, t.key(ID), t.startTime, startTime)
 }
 
 // key 获取事件缓存key
 func (t *taskCache) key(ID uint64) string {
-	return t.keyPrefix + strconv.FormatUint(ID, 64)
+	return t.keyPrefix + strconv.FormatUint(ID, 10)
 }

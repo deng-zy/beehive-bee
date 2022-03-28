@@ -69,8 +69,9 @@ func (b *bee) HandleMessage(m *nsq.Message) error {
 		return nil
 	}
 
-	if task.StartTime.IsZero() {
-		task.StartTime = time.Now()
+	if task.StartTime == nil {
+		t := time.Now()
+		task.StartTime = &t
 	}
 
 	if task.Status == StatusReady {
@@ -84,7 +85,8 @@ func (b *bee) HandleMessage(m *nsq.Message) error {
 
 	if err == nil {
 		m.Finish()
-		task.FinishTime = time.Now()
+		t := time.Now()
+		task.FinishTime = &t
 		task.Status = StatusFinished
 		task.Result = "success"
 		return nil
@@ -93,7 +95,8 @@ func (b *bee) HandleMessage(m *nsq.Message) error {
 	b.conf.logger.WithField("topic", task.Topic).WithField("payload", task.Payload).Errorf("handle task fail(%v)", err)
 	if !b.handler.CanRetry() {
 		m.Finish()
-		task.FinishTime = time.Now()
+		t := time.Now()
+		task.FinishTime = &t
 		task.Status = StatusAbort
 		task.Result = err.Error()
 		return nil
@@ -106,7 +109,8 @@ func (b *bee) HandleMessage(m *nsq.Message) error {
 		return fmt.Errorf("task handle fail(%w)", err)
 	}
 
-	task.FinishTime = time.Now()
+	t := time.Now()
+	task.FinishTime = &t
 	task.Status = StatusAbort
 	task.Result = err.Error()
 

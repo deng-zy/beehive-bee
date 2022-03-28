@@ -13,16 +13,16 @@ type IHandler interface {
 type Handler struct{}
 
 // CanRetry 是否支持重试
-func (h Handler) CanRetry() bool {
+func (h *Handler) CanRetry() bool {
 	return true
 }
 
 // MaxRetries 最大重试次数
-func (h Handler) MaxRetries() int {
+func (h *Handler) MaxRetries() int {
 	return 10
 }
 
 // Concurrency 并发数
-func (h Handler) Concurrency() int {
+func (h *Handler) Concurrency() int {
 	return 10
 }
