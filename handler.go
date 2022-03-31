@@ -19,6 +19,10 @@ func (h *Handler) CanRetry() bool {
 
 // MaxRetries 最大重试次数
 func (h *Handler) MaxRetries() int {
+	if !h.CanRetry() {
+		return 0
+	}
+
 	return 10
 }
 
