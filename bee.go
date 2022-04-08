@@ -17,36 +17,49 @@ type bee struct {
 }
 
 // newBee create a bee
-func newBee(conf *Config, engine *Engine) *bee {
-	return &bee{
-		conf:   conf,
-		engine: engine,
+func newBee(engine *Engine, handler IHandler) (*bee, error) {
+	consumer, err := newConsumer(handler.Topic())
+	if err != nil {
+		return nil, err
 	}
+
+	b := &bee{
+		conf:     engine.conf,
+		engine:   engine,
+		topic:    handler.Topic(),
+		handler:  handler,
+		consumer: consumer,
+	}
+
+	return b, nil
 }
 
+// newConsumer create a nsq consumer
+func newConsumer(topic string) (*nsq.Consumer, error) {
+	config := nsq.NewConfig()
+	return nsq.NewConsumer(topic, "default", config)
+}
+
+// stop stop consume nsq message
 func (b *bee) stop() {
 	b.consumer.Stop()
 }
 
-func (b *bee) pick(topic string, handler IHandler) {
-	b.topic = topic
-	b.handler = handler
+func (b *bee) pick() {
+	defer func() {
+		if err := recover(); err != nil {
+			b.conf.logger.Errorf("bee.pick panic: %v", err)
+			b.pick()
+		}
+	}()
 
 	go func() {
-		config := nsq.NewConfig()
-		consumer, err := nsq.NewConsumer(topic, "", config)
-		if err != nil {
-			b.conf.logger.Fatalf("new %s consumer fail. error:%v", topic, err)
-		}
-		b.consumer = consumer
-
-		consumer.AddConcurrentHandlers(b, handler.Concurrency())
-		if err := consumer.ConnectToNSQLookupds(b.conf.nsqlookupd); err != nil {
+		b.consumer.AddConcurrentHandlers(b, b.handler.Concurrency())
+		if err := b.consumer.ConnectToNSQLookupds(b.conf.nsqlookupd); err != nil {
 			b.conf.logger.Fatal(err)
 		}
 
-		<-consumer.StopChan
-		consumer.Stop()
+		<-b.consumer.StopChan
 	}()
 }
 
@@ -79,10 +92,6 @@ func (b *bee) HandleMessage(m *nsq.Message) error {
 	}
 
 	err = b.handler.Handle(task.Payload)
-	defer func() {
-
-	}()
-
 	if err == nil {
 		m.Finish()
 		t := time.Now()

@@ -1,7 +1,6 @@
 package bee
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 )
@@ -12,26 +11,26 @@ func TestNewDispatch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d := newDispatcher(eng)
+	d, err := newDispatcher(eng)
 	if d == nil {
-		t.Error("newDispather reutrn nil")
+		t.Errorf("newDispather error:%v", err)
 	}
 }
 
 func TestDispathHandle(t *testing.T) {
 	eng, err := testEngine()
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewEngine error:%v", err)
 	}
 
-	d := newDispatcher(eng)
-	if d == nil {
-		t.Fatal("newDispather reutrn nil")
+	d, err := newDispatcher(eng)
+	if err == nil {
+		t.Fatalf("newDispather error:%v", err)
 	}
 
 	e := &Event{
 		ID:          uint64(d.snowflake.Generate()),
-		Topic:       "CREATE_ORDER",
+		Topic:       "UNIT_TEST",
 		Payload:     "",
 		Publisher:   "go_unit_test",
 		PublishedAt: time.Now(),
@@ -39,13 +38,8 @@ func TestDispathHandle(t *testing.T) {
 		UpdatedAt:   time.Now(),
 	}
 
-	payload, err := json.Marshal(e)
+	err = d.deliver(e)
 	if err != nil {
-		t.Fatalf("json.Marshal error. err:%v", err)
-	}
-
-	err = d.Handle(string(payload))
-	if err != nil {
-		t.Errorf("call displatcher.Handle return error. err:%v, payload:%s", err, payload)
+		t.Errorf("dispather deliver task err:%v, payload:%+v", err, e)
 	}
 }

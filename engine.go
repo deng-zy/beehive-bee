@@ -1,6 +1,7 @@
 package bee
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -42,10 +43,6 @@ func NewEngine(conf *Config) (*Engine, error) {
 		redis:    conf.redis,
 		bees:     make([]*bee, 1024),
 	}
-
-	h := newDispatcher(e)
-	e.AddHandler(h)
-
 	return e, nil
 }
 
@@ -69,10 +66,15 @@ func (e *Engine) AddHandler(h IHandler) {
 // Run start event handle
 func (e *Engine) Run() {
 	e.mutex.RLock()
-	for topic, handler := range e.handlers {
-		bee := newBee(e.conf, e)
+	for _, handler := range e.handlers {
+		bee, err := newBee(e, handler)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
 		e.bees = append(e.bees, bee)
-		bee.pick(topic, handler)
+		bee.pick()
 	}
 	e.mutex.RUnlock()
 

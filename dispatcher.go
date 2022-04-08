@@ -2,13 +2,16 @@ package bee
 
 import (
 	"encoding/json"
-	"fmt"
 	"sync"
 
 	"github.com/bwmarrin/snowflake"
 	"github.com/nsqio/go-nsq"
+	"github.com/pkg/errors"
 	"gorm.io/gorm"
 )
+
+// DispatherTopic dispather listen queue name
+const DispatherTopic = "NEW_EVENET"
 
 type dispatcher struct {
 	Handler
@@ -17,102 +20,132 @@ type dispatcher struct {
 	snowflake *snowflake.Node
 	cache     *taskCache
 	db        *gorm.DB
+	consumer  *nsq.Consumer
 }
 
-var dipatcherNewHandle sync.Once
-var dispatchInstance *dispatcher
+var dispatcherHandle sync.Once
+var dispatcherInst *dispatcher
 
-func newDispatcher(e *Engine) *dispatcher {
-	dipatcherNewHandle.Do(func() {
-		config := nsq.NewConfig()
-		deliver, err := nsq.NewProducer(e.conf.nsqd, config)
+func newDispatcher(e *Engine) (*dispatcher, error) {
+	var err error
+	dispatcherHandle.Do(func() {
+		var consumer *nsq.Consumer
+		consumer, err = newConsumer(DispatherTopic)
 		if err != nil {
-			panic(fmt.Errorf("connection to nsq fail.%w", err))
+			return
+		}
+
+		var producer *nsq.Producer
+		producer, err = newProducer(e.conf.nsqd)
+		if err != nil {
+			return
 		}
 
 		var node *snowflake.Node
-		snowflake.Epoch = e.conf.snowflakeEpoch
-		node, err = snowflake.NewNode(e.conf.snowflakeNode)
+		node, err = newSnowflake(e.conf.snowflakeNode, e.conf.snowflakeEpoch)
+
 		if err != nil {
-			e.conf.logger.Errorf("snowflake.NewNode error(%v)", err)
-			node, _ = snowflake.NewNode(0)
+			return
 		}
 
-		dispatchInstance = &dispatcher{
+		dispatcherInst = &dispatcher{
 			engine:    e,
-			producer:  deliver,
+			producer:  producer,
 			snowflake: node,
 			cache:     newTaskCache(e.redis),
 			db:        e.db,
+			consumer:  consumer,
 		}
 	})
-	return dispatchInstance
+
+	if err != nil {
+		return nil, err
+	}
+	return dispatcherInst, nil
 }
 
+func (d *dispatcher) listen() {
+	go func() {
+		d.consumer.AddConcurrentHandlers(d, d.Concurrency())
+		<-d.consumer.StopChan
+	}()
+}
+
+func (d *dispatcher) stop() {
+	d.consumer.Stop()
+}
+
+func (d *dispatcher) HandleMessage(message *nsq.Message) error {
+	message.DisableAutoResponse()
+
+	event := &Event{}
+	if err := json.Unmarshal(message.Body, event); err != nil {
+		d.engine.conf.logger.Errorf("Unmarshal event fail. error:%v", err)
+	}
+
+	defer func() {
+		if err := recover(); err != nil {
+			message.Requeue(-1)
+		} else {
+			message.Finish()
+		}
+	}()
+
+	err := d.deliver(event)
+	if err != nil {
+		return errors.Wrap(err, "create task error")
+	}
+
+	return nil
+}
+
+func (d *dispatcher) deliver(e *Event) error {
+	db := d.engine.conf.db.Begin()
+
+	defer func() {
+		if err := recover(); err != nil {
+			db.Rollback()
+		} else {
+			db.Commit()
+		}
+	}()
+
+	err := db.Create(e).Error
+	if err != nil {
+		db.Rollback()
+		return err
+	}
+
+	t := &task{
+		ID:      uint64(d.snowflake.Generate()),
+		EventID: e.ID,
+		Topic:   e.Topic,
+		Payload: e.Payload,
+		Status:  StatusReady,
+	}
+
+	if err != nil {
+		db.Rollback()
+		return err
+	}
+
+	body, err := json.Marshal(t)
+	if err != nil {
+		db.Rollback()
+		return err
+	}
+
+	d.producer.Publish(t.Topic, body)
+	d.cache.init(t.ID)
+	return nil
+}
+
+// Topic return dispatcher nsq topic
 func (d *dispatcher) Topic() string {
-	return "NEW_EVENT"
+	return DispatherTopic
 }
 
 // Concurrency 并发数
 func (d *dispatcher) Concurrency() int {
 	return 30
-}
-
-func (d *dispatcher) Handle(payload string) error {
-	event := &Event{}
-	err := json.Unmarshal([]byte(payload), event)
-
-	if err != nil {
-		return err
-	}
-
-	db := d.engine.conf.db.Begin()
-	err = d.createEvent(event, db)
-	if err != nil {
-		db.Rollback()
-		return fmt.Errorf("create event fail(%w)", err)
-	}
-
-	var task *task
-	task, err = d.createTask(event, db)
-	if err != nil {
-		db.Rollback()
-		return fmt.Errorf("create event fail(%w)", err)
-	}
-
-	var body []byte
-	body, err = json.Marshal(task)
-	if err != nil {
-		db.Rollback()
-		return fmt.Errorf("marshal task fail(%w)", err)
-	}
-
-	err = d.producer.Publish(task.Topic, body)
-	if err != nil {
-		db.Rollback()
-		return fmt.Errorf("producer publish fail(%w)", err)
-	}
-
-	d.cache.init(task.ID)
-	db.Commit()
-	return nil
-}
-
-func (d *dispatcher) createEvent(m *Event, db *gorm.DB) error {
-	return db.Create(m).Error
-}
-
-func (d *dispatcher) createTask(m *Event, db *gorm.DB) (*task, error) {
-	task := &task{
-		ID:      uint64(d.snowflake.Generate()),
-		EventID: m.ID,
-		Topic:   m.Topic,
-		Payload: m.Payload,
-		Status:  1,
-	}
-	err := db.Create(task).Error
-	if err != nil {
-		return nil, err
-	}
-	return task, nil
 }
