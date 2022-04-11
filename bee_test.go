@@ -10,7 +10,7 @@ func (t testHandler) Concurrency() int {
 	return 1
 }
 
-func (t testHandler) Handle(payload []byte) error {
+func (t testHandler) Handle(payload string) error {
 	return nil
 }
 

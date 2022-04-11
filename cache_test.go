@@ -18,7 +18,7 @@ func TestCache(t *testing.T) {
 		t.Fatal("newTaskCache fail. instance nil")
 	}
 
-	var task uint64 = 1
+	var task int64 = 1
 	cache.init(task)
 
 	//test setStartTime

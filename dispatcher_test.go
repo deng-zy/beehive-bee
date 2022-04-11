@@ -28,14 +28,11 @@ func TestDispathHandle(t *testing.T) {
 		t.Fatalf("newDispather error:%v", err)
 	}
 
-	e := &Event{
-		ID:          uint64(d.snowflake.Generate()),
+	e := &message{
 		Topic:       "UNIT_TEST",
 		Payload:     "",
 		Publisher:   "go_unit_test",
 		PublishedAt: time.Now(),
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
 	}
 
 	err = d.deliver(e)

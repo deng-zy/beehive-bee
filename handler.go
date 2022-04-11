@@ -2,7 +2,7 @@ package bee
 
 // IHandler event process
 type IHandler interface {
-	Handle(payload []byte) error
+	Handle(payload string) error
 	CanRetry() bool
 	Concurrency() int
 	Topic() string
