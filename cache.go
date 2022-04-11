@@ -48,20 +48,20 @@ func newTaskCache(client *redis.Client) *taskCache {
 }
 
 // init 初始事件处理缓存
-func (t *taskCache) init(ID uint64) {
+func (t *taskCache) init(ID int64) {
 	key := t.key(ID)
 	t.redis.HSet(t.ctx, key, statusField, StatusProcessing, resultField, "", retryField, 0, startTimeField, 0, finishTimeField, 0)
 }
 
 // get 获取事件处理缓存数据
-func (t *taskCache) get(ID uint64) map[string]string {
+func (t *taskCache) get(ID int64) map[string]string {
 	key := t.key(ID)
 	cache, _ := t.redis.HGetAll(t.ctx, key).Result()
 	return cache
 }
 
 // success 更新事件处理完成时需要更新缓存的数据
-func (t *taskCache) success(ID uint64, finishedAt time.Time) {
+func (t *taskCache) success(ID int64, finishedAt time.Time) {
 	key := t.key(ID)
 	p := t.redis.Pipeline()
 
@@ -71,7 +71,7 @@ func (t *taskCache) success(ID uint64, finishedAt time.Time) {
 }
 
 // retrying 更新事件处理失败继续重试时需要更新的数据
-func (t *taskCache) retrying(ID uint64, result error) {
+func (t *taskCache) retrying(ID int64, result error) {
 	p := t.redis.Pipeline()
 	key := t.key(ID)
 	p.HSet(t.ctx, key, resultField, result.Error())
@@ -80,7 +80,7 @@ func (t *taskCache) retrying(ID uint64, result error) {
 }
 
 // abort 更新事件终止继续时需要更新的数据
-func (t *taskCache) abort(ID uint64, abortedAt time.Time, result error) {
+func (t *taskCache) abort(ID int64, abortedAt time.Time, result error) {
 	p := t.redis.Pipeline()
 	key := t.key(ID)
 	p.HSet(t.ctx, key, statusField, StatusAbort, finishTimeField, abortedAt.Format(time.RFC3339Nano), resultField, result.Error())
@@ -89,18 +89,18 @@ func (t *taskCache) abort(ID uint64, abortedAt time.Time, result error) {
 }
 
 // retires 获取重试次数
-func (t *taskCache) retires(ID uint64) int {
+func (t *taskCache) retires(ID int64) int {
 	val, _ := t.redis.HGet(t.ctx, t.key(ID), retryField).Result()
 	retires, _ := strconv.ParseInt(val, 10, 32)
 	return int(retires)
 }
 
 // setStartTime 设置事件处理开始时间
-func (t *taskCache) setStartTime(ID uint64, startTime time.Time) {
+func (t *taskCache) setStartTime(ID int64, startTime time.Time) {
 	t.redis.HSet(t.ctx, t.key(ID), startTimeField, startTime)
 }
 
 // key 获取事件缓存key
-func (t *taskCache) key(ID uint64) string {
-	return t.keyPrefix + strconv.FormatUint(ID, 10)
+func (t *taskCache) key(ID int64) string {
+	return t.keyPrefix + strconv.FormatInt(ID, 10)
 }

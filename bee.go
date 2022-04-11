@@ -34,12 +34,6 @@ func newBee(engine *Engine, handler IHandler) (*bee, error) {
 	return b, nil
 }
 
-// newConsumer create a nsq consumer
-func newConsumer(topic string) (*nsq.Consumer, error) {
-	config := nsq.NewConfig()
-	return nsq.NewConsumer(topic, "default", config)
-}
-
 // stop stop consume nsq message
 func (b *bee) stop() {
 	b.consumer.Stop()

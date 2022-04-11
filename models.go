@@ -6,7 +6,7 @@ import (
 
 // Event events table struct
 type Event struct {
-	ID          uint64    `gorm:"column:id" db:"id" json:"id"`                                   //数据表主键
+	ID          int64     `gorm:"column:id" db:"id" json:"id"`                                   //数据表主键
 	Topic       string    `gorm:"column:topic" db:"topic" json:"topic" `                         //topic 主题
 	Payload     string    `gorm:"column:payload" db:"payload" json:"payload"`                    //消息
 	Publisher   string    `gorm:"column:publisher" db:"publisher" json:"publisher"`              //发布者
@@ -22,8 +22,8 @@ func (e *Event) TableName() string {
 
 // task task table model
 type task struct {
-	ID         uint64     `gorm:"column:id" db:"id" json:"id" form:"id"`                                     //数据表主键
-	EventID    uint64     `gorm:"column:event_id" db:"event_id" json:"event_id" form:"event_id"`             //事件id
+	ID         int64      `gorm:"column:id" db:"id" json:"id" form:"id"`                                     //数据表主键
+	EventID    int64      `gorm:"column:event_id" db:"event_id" json:"event_id" form:"event_id"`             //事件id
 	Topic      string     `gorm:"column:topic" db:"topic" json:"topic" form:"topic"`                         //事件主题
 	Payload    string     `gorm:"column:payload" db:"payload" json:"payload" form:"payload"`                 //事件消息
 	Status     uint8      `gorm:"column:status" db:"status" json:"status" form:"status"`                     //任务状态 1:就绪 2:处理中 3:结束 4:中断 5:取消

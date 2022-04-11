@@ -75,23 +75,24 @@ func (d *dispatcher) stop() {
 	d.consumer.Stop()
 }
 
-func (d *dispatcher) HandleMessage(message *nsq.Message) error {
-	message.DisableAutoResponse()
+func (d *dispatcher) HandleMessage(m *nsq.Message) error {
+	m.DisableAutoResponse()
 
-	event := &Event{}
-	if err := json.Unmarshal(message.Body, event); err != nil {
+	msg := &message{}
+	if err := json.Unmarshal(m.Body, msg); err != nil {
 		d.engine.conf.logger.Errorf("Unmarshal event fail. error:%v", err)
+		return nil
 	}
 
 	defer func() {
 		if err := recover(); err != nil {
-			message.Requeue(-1)
+			m.Requeue(-1)
 		} else {
-			message.Finish()
+			m.Finish()
 		}
 	}()
 
-	err := d.deliver(event)
+	err := d.deliver(msg)
 	if err != nil {
 		return errors.Wrap(err, "create task error")
 	}
@@ -99,39 +100,48 @@ func (d *dispatcher) HandleMessage(message *nsq.Message) error {
 	return nil
 }
 
-func (d *dispatcher) deliver(e *Event) error {
+func (d *dispatcher) deliver(m *message) error {
 	db := d.engine.conf.db.Begin()
+	var err error
 
 	defer func() {
-		if err := recover(); err != nil {
+		if p := recover(); p != nil {
+			db.Rollback()
+		} else if err != nil {
 			db.Rollback()
 		} else {
 			db.Commit()
 		}
 	}()
 
-	err := db.Create(e).Error
+	e := &Event{
+		ID:          d.snowflake.Generate().Int64(),
+		Topic:       m.Topic,
+		Payload:     m.Payload,
+		Publisher:   m.Publisher,
+		PublishedAt: m.PublishedAt,
+	}
+
+	err = db.Create(e).Error
 	if err != nil {
-		db.Rollback()
 		return err
 	}
 
 	t := &task{
-		ID:      uint64(d.snowflake.Generate()),
+		ID:      d.snowflake.Generate().Int64(),
 		EventID: e.ID,
 		Topic:   e.Topic,
 		Payload: e.Payload,
 		Status:  StatusReady,
 	}
 
+	err = db.Create(t).Error
 	if err != nil {
-		db.Rollback()
 		return err
 	}
 
 	body, err := json.Marshal(t)
 	if err != nil {
-		db.Rollback()
 		return err
 	}
 
