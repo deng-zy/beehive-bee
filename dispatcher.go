@@ -11,7 +11,7 @@ import (
 )
 
 // DispatherTopic dispather listen queue name
-const DispatherTopic = "NEW_EVENET"
+const DispatherTopic = "NEW_EVENT"
 
 type dispatcher struct {
 	Handler
